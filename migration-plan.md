@@ -208,3 +208,9 @@ sequenceDiagram
 | **Rotate DB Password** | 1. Trigger rotation via Cloud Function / Manual update in `prj-secrets-core` <br> 2. Verify Secret Manager Add-on successfully syncs to K8s Secret | DBA / DevOps |
 | **Deploy/Rotate SSL Cert** | 1. Upload new `.pem` / `.key` to Secret Manager <br> 2. Ensure Pipeline fires successfully <br> 3. Verify Certificate Manager in `prj-app-*` reflects new cert <br> 4. Ensure LB is serving new cert | SecOps / DevOps |
 | **Onboard New Project** | 1. Provision `prj-app-c` inside VPC-SC <br> 2. Create `gsa-app-c` in Central Project <br> 3. Stand up GKE and configure Workload Identity | Platform Team |
+
+---
+
+## 9. Visual Architecture Reference
+
+![Centralized GCP Secrets Architecture](./architecture.png)
