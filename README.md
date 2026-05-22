@@ -14,7 +14,6 @@ It demonstrates how a **Central Secrets Project** securely manages secrets and S
 | `architecture.png` | Visual diagram of the centralized secrets architecture. |
 | `migration-plan.md` | Step‑by‑step plan for migrating existing secrets to the centralized model. |
 | `migration-implementation.md` | Detailed implementation guide for executing the migration plan. |
-| `README.md` | This documentation file — overview, setup, and navigation. |
 
 ---
 
