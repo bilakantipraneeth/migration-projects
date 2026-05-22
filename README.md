@@ -10,7 +10,6 @@ It demonstrates how a **Central Secrets Project** securely manages secrets and S
 | Directory / File | Description |
 |------------------|-------------|
 | `.github/workflows/` | CI/CD workflows for automation and validation. |
-| `gcp-central-secrets-architecture/` | Core implementation files for centralized secrets setup. |
 | `scripts/` | Helper scripts for deployment, rotation, and automation tasks. |
 | `architecture.png` | Visual diagram of the centralized secrets architecture. |
 | `migration-plan.md` | Step‑by‑step plan for migrating existing secrets to the centralized model. |
