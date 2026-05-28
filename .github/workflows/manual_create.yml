@@ -12,6 +12,9 @@ on:
         description: "Data Payload to inject"
         required: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   create:
     runs-on: ubuntu-latest
