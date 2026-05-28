@@ -1,4 +1,8 @@
 terraform {
+  backend "gcs" {
+    bucket = "praneeth1211-gcp-pilot-tfstate"
+    prefix = "terraform/vault-vm/state"
+  }
   required_providers {
     google = {
       source  = "hashicorp/google"
