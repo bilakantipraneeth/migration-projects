@@ -11,9 +11,20 @@ To test or run this tool locally, you must have Python 3.10+ installed and be au
   ```powershell
   gcloud auth application-default login
   ```
-- **Vault:** Ensure you have your Vault Address and a valid Token ready.
 
-### 2. Installation
+### 2. Vault Docker Testing Environment (Recommended)
+If you don't have a Vault server to test with, you can spin one up instantly using Docker!
+1. Open PowerShell and navigate to the local testing environment:
+   ```powershell
+   cd local-env
+   ```
+2. Run the automated setup script. This spins up Vault and safely injects a test secret into it using Docker Exec:
+   ```powershell
+   .\setup-vault.ps1
+   ```
+3. Your local Vault is now running on `http://127.0.0.1:8200` with the token `test-root-token`.
+
+### 3. Installation
 Ensure you are in this `vault-migrator` directory, then install the package:
 ```powershell
 pip install .
