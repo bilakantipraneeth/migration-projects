@@ -1,0 +1,225 @@
+name: "Vault to GCP Migration (Batch via Shell)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      projectName:
+        description: "GCP Project ID"
+        required: true
+        type: string
+
+      region:
+        description: "Region for the secrets (e.g., global, us-central1)"
+        required: true
+        type: string
+        default: "global"
+
+      secrets_json:
+        description: |
+          JSON array of Vault secrets to migrate.
+          [
+            {"vault_path": "secret/my-app", "vault_key": "password", "gcp_secret": "my-secret-1"}
+          ]
+        required: true
+        type: string
+
+      kmsKeyName:
+        description: "Full KMS key resource path for CMEK encryption (optional)"
+        required: false
+        type: string
+
+      app:
+        description: "Application name label"
+        required: false
+        type: string
+
+      env:
+        description: "Environment label (prod/staging/dev)"
+        required: false
+        type: string
+
+      project:
+        description: "Project label"
+        required: false
+        type: string
+
+      cost-center:
+        description: "Cost center label"
+        required: false
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  review-user-input:
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    steps:
+      - name: Review Inputs
+        run: |
+          SECRETS_JSON=$(jq -r '.inputs.secrets_json // "[]"' "$GITHUB_EVENT_PATH")
+          SECRET_NAMES=$(echo "$SECRETS_JSON" | jq -r '[.[].gcp_secret] | join(", ")')
+
+          echo "projectName: ${{ inputs.projectName }}"
+          echo "region: ${{ inputs.region }}"
+          echo "gcp_secrets: $SECRET_NAMES"
+          echo "app: ${{ inputs.app }}"
+          echo "env: ${{ inputs.env }}"
+          echo "project: ${{ inputs.project }}"
+          echo "cost-center: ${{ inputs.cost-center }}"
+
+  approve:
+    needs: [review-user-input]
+    runs-on: ubuntu-latest
+    name: "approve apply ${{ inputs.projectName }}"
+
+    steps:
+      - name: Apply approved
+        run: |
+          echo "======================"
+          echo "APPLY APPROVED"
+          echo "======================"
+          echo "project id: ${{ inputs.projectName }}"
+          echo "approved by: ${{ github.actor }}"
+          echo "run id: ${{ github.run_id }}"
+
+  execute:
+    needs: [approve]
+    runs-on: ubuntu-latest
+    name: "migrate-vault-secrets"
+    continue-on-error: false
+
+    steps:
+      - name: Validate inputs
+        run: |
+          SECRETS_JSON=$(jq -r '.inputs.secrets_json // "[]"' "$GITHUB_EVENT_PATH")
+
+          if ! echo "$SECRETS_JSON" | jq -e 'type == "array" and length > 0' > /dev/null; then
+            echo "Error: secrets_json must be a non-empty JSON array."
+            exit 1
+          fi
+
+          dupes=$(echo "$SECRETS_JSON" | jq -r '
+            map(.gcp_secret)
+            | group_by(.)
+            | map(select(length > 1) | .[0])
+            | join(",")
+          ')
+
+          if [ -n "$dupes" ]; then
+            echo "Error: duplicate GCP secret names in batch: $dupes"
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_JSON }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ inputs.projectName }}
+
+      - name: Configure KMS key
+        run: |
+          gcloud config set project "${{ inputs.projectName }}" --verbosity=error
+          echo "kmskey=${{ inputs.kmsKeyName }}" >> "$GITHUB_ENV"
+
+      - name: Migrate secrets from Vault
+        env:
+          PROJECT: ${{ inputs.projectName }}
+          VAULT_ADDR_RAW: ${{ secrets.VAULT_ADDR }}
+          VAULT_TOKEN_RAW: ${{ secrets.VAULT_TOKEN }}
+        run: |
+          # Strip any trailing whitespaces from vault credentials to prevent connection errors
+          VAULT_ADDR=$(echo "$VAULT_ADDR_RAW" | tr -d '[:space:]')
+          VAULT_TOKEN=$(echo "$VAULT_TOKEN_RAW" | tr -d '[:space:]')
+
+          # Remove trailing slash if present
+          VAULT_ADDR=${VAULT_ADDR%/}
+
+          LABELS="managed-by=github,migrated-from=vault"
+
+          [[ -n "${{ inputs.env }}" ]] && LABELS="${LABELS},env=${{ inputs.env }}"
+          [[ -n "${{ inputs.app }}" ]] && LABELS="${LABELS},app=${{ inputs.app }}"
+          [[ -n "${{ inputs.project }}" ]] && LABELS="${LABELS},project=${{ inputs.project }}"
+          [[ -n "${{ inputs.cost-center }}" ]] && LABELS="${LABELS},cost-center=${{ inputs.cost-center }}"
+
+          SECRETS_JSON=$(jq -r '.inputs.secrets_json // "[]"' "$GITHUB_EVENT_PATH")
+          count=$(echo "$SECRETS_JSON" | jq 'length')
+
+          existing=$(gcloud secrets list \
+            --project="$PROJECT" \
+            --format="value(name)")
+
+          for i in $(seq 0 $((count - 1))); do
+            vault_path=$(echo "$SECRETS_JSON" | jq -r ".[$i].vault_path")
+            vault_key=$(echo "$SECRETS_JSON" | jq -r ".[$i].vault_key")
+            gcp_secret=$(echo "$SECRETS_JSON" | jq -r ".[$i].gcp_secret")
+
+            echo "------------------------------------------------------"
+            echo "Migrating $vault_path:$vault_key -> $gcp_secret..."
+
+            # Auto-detect path logic for KV engine
+            if [[ "$vault_path" != *"/"* ]]; then
+               MOUNT="secret"
+               REST="$vault_path"
+            else
+               MOUNT=$(echo "$vault_path" | cut -d/ -f1)
+               REST=$(echo "$vault_path" | cut -d/ -f2-)
+            fi
+            
+            # Try fetching from Vault (KV Version 2 API)
+            vault_response=$(curl -s -f -H "X-Vault-Token: $VAULT_TOKEN" "$VAULT_ADDR/v1/$MOUNT/data/$REST") || true
+            
+            # If empty/failed, try (KV Version 1 API)
+            if [[ -z "$vault_response" || "$vault_response" == *"errors"* ]]; then
+              vault_response=$(curl -s -f -H "X-Vault-Token: $VAULT_TOKEN" "$VAULT_ADDR/v1/$vault_path") || true
+            fi
+            
+            if [[ -z "$vault_response" || "$vault_response" == *"errors"* ]]; then
+               echo "Error: Failed to fetch $vault_path from Vault. Check path or permissions."
+               exit 1
+            fi
+
+            # Extract the specific key value dynamically (handles both KV1 and KV2 response shapes)
+            secret_value=$(echo "$vault_response" | jq -r ".data.data.\"$vault_key\" // .data.\"$vault_key\" // empty")
+            
+            if [[ -z "$secret_value" ]]; then
+              echo "Error: Key '$vault_key' not found in Vault path '$vault_path'"
+              exit 1
+            fi
+
+            # Securely mask the secret value in GitHub Actions logs
+            echo "::add-mask::$secret_value"
+
+            # Create shell in GCP if it does not exist
+            if ! echo "$existing" | grep -qx "$gcp_secret"; then
+              echo "Creating new Secret Manager shell for [$gcp_secret]..."
+              
+              cat > replication_policy.yaml <<EOF
+          userManaged:
+            replicas:
+              - location: ${{ inputs.region }}
+          EOF
+
+              # Optional KMS
+              if [[ -n "${{ env.kmskey }}" ]]; then
+                 echo "                customerManagedEncryption:" >> replication_policy.yaml
+                 echo "                  kmsKeyName: ${{ env.kmskey }}" >> replication_policy.yaml
+              fi
+
+              gcloud secrets create "$gcp_secret" \
+                --replication-policy-file=replication_policy.yaml \
+                --labels="$LABELS"
+            fi
+
+            # Add new version with the pulled secret data
+            printf '%s' "$secret_value" | gcloud secrets versions add "$gcp_secret" \
+              --data-file=-
+
+            echo "Successfully migrated: $gcp_secret"
+          done
