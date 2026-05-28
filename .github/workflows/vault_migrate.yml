@@ -1,0 +1,46 @@
+name: Vault to GCP Migration
+on:
+  workflow_dispatch:
+    inputs:
+      gcp_project_id:
+        description: "GCP Project ID"
+        required: true
+      vault_path:
+        description: "Vault Secret Path"
+        required: true
+      gcp_secret_id:
+        description: "GCP Secret ID (Shell must exist!)"
+        required: true
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install Python Dependencies
+        run: |
+          cd tools/vault-migrator
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_JSON }}
+
+      - name: Run Migration
+        env:
+          VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+          VAULT_PATH: ${{ github.event.inputs.vault_path }}
+          GCP_SECRET_ID: ${{ github.event.inputs.gcp_secret_id }}
+          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
+        run: |
+          cd tools/vault-migrator
+          python run.py

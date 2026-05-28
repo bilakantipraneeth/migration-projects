@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "core_migrator"
+version = "0.1.0"
+description = "Migrates secrets from HashiCorp Vault to GCP Secret Manager"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "hvac==2.1.0",
+    "google-cloud-secret-manager==2.16.2"
+]

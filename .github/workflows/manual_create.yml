@@ -1,0 +1,44 @@
+name: Manual GCP Secret Creation
+on:
+  workflow_dispatch:
+    inputs:
+      gcp_project_id:
+        description: "GCP Project ID"
+        required: true
+      gcp_secret_id:
+        description: "GCP Secret ID"
+        required: true
+      secret_data:
+        description: "Data Payload to inject"
+        required: true
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install Python Dependencies
+        run: |
+          cd tools/manual-creator
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_JSON }}
+
+      - name: Run Manual Creation
+        env:
+          SECRET_DATA: ${{ github.event.inputs.secret_data }}
+          GCP_SECRET_ID: ${{ github.event.inputs.gcp_secret_id }}
+          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
+        run: |
+          cd tools/manual-creator
+          python run.py
