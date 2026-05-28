@@ -1,7 +1,16 @@
-name: Deploy Vault VM
+name: Manage Vault VM
 
 on:
   workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - destroy
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -24,12 +33,14 @@ jobs:
           terraform_version: "1.5.0"
 
       - name: Deploy Vault VM
+        if: ${{ github.event.inputs.action == 'deploy' }}
         run: |
           cd infrastructure/terraform-vault-vm
           terraform init
           terraform apply -var="project_id=${{ env.PROJECT_ID }}" -auto-approve
           
       - name: Display Vault URL
+        if: ${{ github.event.inputs.action == 'deploy' }}
         run: |
           cd infrastructure/terraform-vault-vm
           VAULT_URL=$(terraform output -raw vault_url)
@@ -38,4 +49,14 @@ jobs:
           echo "Your Public Vault URL is: $VAULT_URL"
           echo "Your Vault Token is: test-root-token"
           echo "Please update your GitHub Secrets with this URL."
+          echo "======================================================"
+
+      - name: Destroy Vault VM
+        if: ${{ github.event.inputs.action == 'destroy' }}
+        run: |
+          cd infrastructure/terraform-vault-vm
+          terraform init
+          terraform destroy -var="project_id=${{ env.PROJECT_ID }}" -auto-approve
+          echo "======================================================"
+          echo "Vault Server successfully destroyed!"
           echo "======================================================"
