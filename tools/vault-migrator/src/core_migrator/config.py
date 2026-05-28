@@ -7,12 +7,12 @@ logger = logging.getLogger("core_migrator.config")
 class ConfigManager:
     """Responsible for loading and validating environment variables."""
     def __init__(self):
-        self.vault_addr = os.environ.get("VAULT_ADDR", "http://127.0.0.1:8200")
-        self.vault_token = os.environ.get("VAULT_TOKEN")
-        self.vault_path = os.environ.get("VAULT_PATH")
-        self.vault_key = os.environ.get("VAULT_KEY", "password")
-        self.gcp_project_id = os.environ.get("GCP_PROJECT_ID")
-        self.gcp_secret_id = os.environ.get("GCP_SECRET_ID")
+        self.vault_addr = os.environ.get("VAULT_ADDR", "http://127.0.0.1:8200").strip()
+        self.vault_token = os.environ.get("VAULT_TOKEN", "").strip()
+        self.vault_path = os.environ.get("VAULT_PATH", "").strip()
+        self.vault_key = os.environ.get("VAULT_KEY", "password").strip()
+        self.gcp_project_id = os.environ.get("GCP_PROJECT_ID", "").strip()
+        self.gcp_secret_id = os.environ.get("GCP_SECRET_ID", "").strip()
 
     def validate(self):
         if not all([self.vault_token, self.vault_path, self.gcp_project_id, self.gcp_secret_id]):
