@@ -61,7 +61,7 @@ Because GitHub Actions cannot access your local `127.0.0.1` Docker container, we
 ### Step 2: Configure Secrets
 Navigate to **Settings** > **Secrets and variables** > **Actions** and ensure these repository secrets exist:
 - `GCP_SA_KEY_JSON`: Your Google Cloud JSON key (with Secret Manager Admin rights).
-- `VAULT_ADDR`: Paste the URL from Step 1.
+- `VAULT_ADDR`: Paste the URL from Step 1. **(CRITICAL: It must include the `http://` prefix, e.g., `http://34.56.x.x:8200`)**
 - `VAULT_TOKEN`: `test-root-token`
 
 ### Step 3: Run the Migration Pipeline
